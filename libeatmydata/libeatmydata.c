@@ -31,6 +31,8 @@
 #define CHECK_FILE "/tmp/eatmydata"
 */
 
+#ifndef __APPLE__
+
 /*
  * Mac OS X 10.7 doesn't declare fdatasync().
  */
@@ -87,6 +89,22 @@ void __attribute__ ((constructor)) eatmydata_init(void)
 #endif
 	initing = 0;
 }
+#define REAL(x) (*libc_##x)
+#define EATMYDATA(x) EATMYDATA_API x
+#else
+const int initing = 0;
+static const struct {void *from; void *to;} interposers[] __attribute__((used)) __attribute((section("__DATA, __interpose"))) = {
+	{eatmydata_open, open},
+	{eatmydata_open64, open64},
+	{eatmydata_fsync, fsync},
+	{eatmydata_sync, sync},
+	{eatmydata_fdatasync, fdatasync},
+	{eatmydata_msync, msync},
+};
+void eatmydata_init(void) {}
+#define REAL(x) (x)
+#define EATMYDATA(x) eatmydata_ ## x
+#endif
 
 static int eatmydata_is_hungry(void)
 {
@@ -110,7 +128,7 @@ static int eatmydata_is_hungry(void)
 #endif
 }
 
-int LIBEATMYDATA_API fsync(int fd)
+int EATMYDATA(fsync)(int fd)
 {
 	if (eatmydata_is_hungry()) {
 		pthread_testcancel();
@@ -118,20 +136,20 @@ int LIBEATMYDATA_API fsync(int fd)
 		return 0;
 	}
 
-	return (*libc_fsync)(fd);
+	return REAL(fsync)(fd);
 }
 
 /* no errors are defined for this function */
-void LIBEATMYDATA_API sync(void)
+void EATMYDATA(sync)(void)
 {
 	if (eatmydata_is_hungry()) {
 		return;
 	}
 
-	(*libc_sync)();
+	REAL(sync)();
 }
 
-int LIBEATMYDATA_API open(const char* pathname, int flags, ...)
+int EATMYDATA(open)(const char* pathname, int flags, ...)
 {
 	va_list ap;
 	mode_t mode;
@@ -154,11 +172,11 @@ int LIBEATMYDATA_API open(const char* pathname, int flags, ...)
 	if (eatmydata_is_hungry())
 		flags &= ~(O_SYNC|O_DSYNC);
 
-	return (*libc_open)(pathname,flags,mode);
+	return REAL(open)(pathname,flags,mode);
 }
 
 #ifndef __USE_FILE_OFFSET64
-int LIBEATMYDATA_API open64(const char* pathname, int flags, ...)
+int EATMYDATA(open64)(const char* pathname, int flags, ...)
 {
 	va_list ap;
 	mode_t mode;
@@ -181,11 +199,11 @@ int LIBEATMYDATA_API open64(const char* pathname, int flags, ...)
 	if (eatmydata_is_hungry())
 		flags &= ~(O_SYNC|O_DSYNC);
 
-	return (*libc_open64)(pathname,flags,mode);
+	return REAL(open64)(pathname,flags,mode);
 }
 #endif
 
-int LIBEATMYDATA_API fdatasync(int fd)
+int EATMYDATA(fdatasync)(int fd)
 {
 	if (eatmydata_is_hungry()) {
 		pthread_testcancel();
@@ -193,10 +211,10 @@ int LIBEATMYDATA_API fdatasync(int fd)
 		return 0;
 	}
 
-	return (*libc_fdatasync)(fd);
+	return REAL(fdatasync)(fd);
 }
 
-int LIBEATMYDATA_API msync(void *addr, size_t length, int flags)
+int EATMYDATA(msync)(void *addr, size_t length, int flags)
 {
 	if (eatmydata_is_hungry()) {
 		pthread_testcancel();
@@ -204,11 +222,11 @@ int LIBEATMYDATA_API msync(void *addr, size_t length, int flags)
 		return 0;
 	}
 
-	return (*libc_msync)(addr, length, flags);
+	return REAL(msync)(addr, length, flags);
 }
 
 #ifdef HAVE_SYNC_FILE_RANGE
-int sync_file_range(int fd, off64_t offset, off64_t nbytes, unsigned int flags)
+int EATMYDATA(sync_file_range)(int fd, off64_t offset, off64_t nbytes, unsigned int flags)
 {
 	if (eatmydata_is_hungry()) {
 		pthread_testcancel();
@@ -216,6 +234,6 @@ int sync_file_range(int fd, off64_t offset, off64_t nbytes, unsigned int flags)
 		return 0;
 	}
 
-	return (libc_sync_file_range)(fd, offset, nbytes, flags);
+	return REAL(sync_file_range)(fd, offset, nbytes, flags);
 }
 #endif
