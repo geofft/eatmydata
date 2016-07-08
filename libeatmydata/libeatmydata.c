@@ -93,17 +93,10 @@ void __attribute__ ((constructor)) eatmydata_init(void)
 #define EATMYDATA(x) EATMYDATA_API x
 #else
 const int initing = 0;
-static const struct {void *from; void *to;} interposers[] __attribute__((used)) __attribute((section("__DATA, __interpose"))) = {
-	{eatmydata_open, open},
-	{eatmydata_open64, open64},
-	{eatmydata_fsync, fsync},
-	{eatmydata_sync, sync},
-	{eatmydata_fdatasync, fdatasync},
-	{eatmydata_msync, msync},
-};
-void eatmydata_init(void) {}
+const int libc_open = 1;
+static void eatmydata_init(void) {}
 #define REAL(x) (x)
-#define EATMYDATA(x) eatmydata_ ## x
+#define EATMYDATA(x) static eatmydata_ ## x
 #endif
 
 static int eatmydata_is_hungry(void)
@@ -175,6 +168,7 @@ int EATMYDATA(open)(const char* pathname, int flags, ...)
 	return REAL(open)(pathname,flags,mode);
 }
 
+#ifndef __APPLE__
 #ifndef __USE_FILE_OFFSET64
 int EATMYDATA(open64)(const char* pathname, int flags, ...)
 {
@@ -213,6 +207,7 @@ int EATMYDATA(fdatasync)(int fd)
 
 	return REAL(fdatasync)(fd);
 }
+#endif
 
 int EATMYDATA(msync)(void *addr, size_t length, int flags)
 {
@@ -236,4 +231,15 @@ int EATMYDATA(sync_file_range)(int fd, off64_t offset, off64_t nbytes, unsigned 
 
 	return REAL(sync_file_range)(fd, offset, nbytes, flags);
 }
+#endif
+
+#ifdef __APPLE__
+static const struct {void *from; void *to;} interposers[] __attribute__((used)) __attribute((section("__DATA, __interpose"))) = {
+	{eatmydata_open, open},
+	//{eatmydata_open64, open64},
+	{eatmydata_fsync, fsync},
+	{eatmydata_sync, sync},
+	{eatmydata_fdatasync, fdatasync},
+	{eatmydata_msync, msync},
+};
 #endif
