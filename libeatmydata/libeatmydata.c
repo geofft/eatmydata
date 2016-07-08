@@ -26,6 +26,7 @@
 #include <dlfcn.h>
 #include <stdarg.h>
 #include <pthread.h>
+#include <sys/mman.h>
 
 /* 
 #define CHECK_FILE "/tmp/eatmydata"
@@ -70,7 +71,6 @@ static libc_sync_file_range_t libc_sync_file_range= NULL;
 						   dlerror();
 
 
-int LIBEATMYDATA_API msync(void *addr, size_t length, int flags);
 static int initing = 0;
 
 void __attribute__ ((constructor)) eatmydata_init(void);
